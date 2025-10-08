@@ -93,41 +93,41 @@ def init_chat_model(
             above). Supported model_provider values and the corresponding integration
             package are:
 
-            - ``openai``              -> ``langchain-openai``
-            - ``anthropic``           -> ``langchain-anthropic``
-            - ``azure_openai``        -> ``langchain-openai``
-            - ``azure_ai``            -> ``langchain-azure-ai``
-            - ``google_vertexai``     -> ``langchain-google-vertexai``
-            - ``google_genai``        -> ``langchain-google-genai``
-            - ``bedrock``             -> ``langchain-aws``
-            - ``bedrock_converse``    -> ``langchain-aws``
-            - ``cohere``              -> ``langchain-cohere``
-            - ``fireworks``           -> ``langchain-fireworks``
-            - ``together``            -> ``langchain-together``
-            - ``mistralai``           -> ``langchain-mistralai``
-            - ``huggingface``         -> ``langchain-huggingface``
-            - ``groq``                -> ``langchain-groq``
-            - ``ollama``              -> ``langchain-ollama``
-            - ``google_anthropic_vertex``    -> ``langchain-google-vertexai``
-            - ``deepseek``            -> ``langchain-deepseek``
-            - ``ibm``                 -> ``langchain-ibm``
-            - ``nvidia``              -> ``langchain-nvidia-ai-endpoints``
-            - ``xai``                 -> ``langchain-xai``
-            - ``perplexity``          -> ``langchain-perplexity``
+            - ``openai``              -> ``langchain-openai``
+            - ``anthropic``           -> ``langchain-anthropic``
+            - ``azure_openai``        -> ``langchain-openai``
+            - ``azure_ai``            -> ``langchain-azure-ai``
+            - ``google_vertexai``     -> ``langchain-google-vertexai``
+            - ``google_genai``        -> ``langchain-google-genai``
+            - ``bedrock``             -> ``langchain-aws``
+            - ``bedrock_converse``    -> ``langchain-aws``
+            - ``cohere``              -> ``langchain-cohere``
+            - ``fireworks``           -> ``langchain-fireworks``
+            - ``together``            -> ``langchain-together``
+            - ``mistralai``           -> ``langchain-mistralai``
+            - ``huggingface``         -> ``langchain-huggingface``
+            - ``groq``                -> ``langchain-groq``
+            - ``ollama``              -> ``langchain-ollama``
+            - ``google_anthropic_vertex``    -> ``langchain-google-vertexai``
+            - ``deepseek``            -> ``langchain-deepseek``
+            - ``ibm``                 -> ``langchain-ibm``
+            - ``nvidia``              -> ``langchain-nvidia-ai-endpoints``
+            - ``xai``                 -> ``langchain-xai``
+            - ``perplexity``          -> ``langchain-perplexity``
 
             Will attempt to infer model_provider from model if not specified. The
             following providers will be inferred based on these model prefixes:
 
             - ``gpt-3...`` | ``gpt-4...`` | ``o1...`` -> ``openai``
-            - ``claude...``                       -> ``anthropic``
-            - ``amazon...``                       -> ``bedrock``
-            - ``gemini...``                       -> ``google_vertexai``
-            - ``command...``                      -> ``cohere``
-            - ``accounts/fireworks...``           -> ``fireworks``
-            - ``mistral...``                      -> ``mistralai``
-            - ``deepseek...``                     -> ``deepseek``
-            - ``grok...``                         -> ``xai``
-            - ``sonar...``                        -> ``perplexity``
+            - ``claude...``                       -> ``anthropic``
+            - ``amazon...``                       -> ``bedrock``
+            - ``gemini...``                       -> ``google_vertexai``
+            - ``command...``                      -> ``cohere``
+            - ``accounts/fireworks...``           -> ``fireworks``
+            - ``mistral...``                      -> ``mistralai``
+            - ``deepseek...``                     -> ``deepseek``
+            - ``grok...``                         -> ``xai``
+            - ``sonar...``                        -> ``perplexity``
         configurable_fields: Which model parameters are configurable:
 
             - None: No configurable fields.
@@ -416,28 +416,37 @@ def _init_chat_model_helper(
             from langchain_huggingface.chat_models import ChatHuggingFace
             from langchain_huggingface.llms import HuggingFacePipeline
         except ImportError as e:
-            raise ImportError(
+            import_error_msg = (
                 "Please install langchain-huggingface to use HuggingFace models."
-            ) from e
-
-        # The 'task' kwarg is required by from_model_id but not the base constructor.
-        # We pop it from kwargs to avoid the Pydantic 'extra_forbidden' error.
-        task = kwargs.pop("task", None)
-        if not task:
-            raise ValueError(
-                "The 'task' keyword argument is required for HuggingFace models. "
-                "For example: task='text-generation'."
             )
+            raise ImportError(import_error_msg) from e
 
-        # Initialize the base LLM pipeline with the model and arguments
+        # The 'task' kwarg is required by from_model_id but optional for users.
+        # Default to 'text-generation' if not provided.
+        task = kwargs.pop("task", "text-generation")
+        
+        # Separate HuggingFace pipeline kwargs from ChatHuggingFace kwargs
+        # ChatHuggingFace accepts: temperature, max_tokens, timeout, max_retries
+        chat_specific_kwargs = {
+            k: v for k, v in kwargs.items() 
+            if k in ['temperature', 'max_tokens', 'timeout', 'max_retries']
+        }
+        
+        # Everything else goes to the pipeline
+        pipeline_kwargs = {
+            k: v for k, v in kwargs.items() 
+            if k not in chat_specific_kwargs
+        }
+
+        # Initialize the base LLM pipeline with the model and pipeline arguments
         llm = HuggingFacePipeline.from_model_id(
             model_id=model,
             task=task,
-            **kwargs,  # Pass remaining kwargs like `device`
+            **pipeline_kwargs,
         )
 
-        # Pass the initialized LLM to the chat wrapper
-        return ChatHuggingFace(llm=llm)
+        # Pass the initialized LLM to the chat wrapper with chat-specific kwargs
+        return ChatHuggingFace(llm=llm, **chat_specific_kwargs)
     if model_provider == "groq":
         _check_pkg("langchain_groq")
         from langchain_groq import ChatGroq
